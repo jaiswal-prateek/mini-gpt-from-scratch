@@ -12,9 +12,17 @@ MAX_SEQ_LEN = 512
 
 BATCH_SIZE = 32
 LEARNING_RATE = 3e-4
-NUM_EPOCHS = 1
+NUM_EPOCHS = 5
 
 
 # Tokenizer Configuration
 
 TOKENIZER_PATH = "artifacts/tinystories_bpe_8192.json"
+
+# Data Configuration
+
+TRAIN_DATA_PATH = "data/raw/train.jsonl"
+VAL_DATA_PATH = "data/raw/val.jsonl"
+
+TRAIN_PROCESSED_PATH = "data/processed/train.pt"
+VAL_PROCESSED_PATH = "data/processed/val.pt"

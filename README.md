@@ -1,5 +1,3 @@
-# [WORK IN PROGRESS]
-
 # Mini GPT From Scratch
 
 A hands-on project to understand how a GPT-style language model works by building the major components from scratch in PyTorch.
@@ -17,22 +15,22 @@ Token IDs
    ↓
 Embeddings
    ↓
-Transformer Architecture
-   ↓
-Attention + RoPE
-   ↓
-Feed-Forward Network
+Transformer Components
    ↓
 Mini GPT
    ↓
 Training
    ↓
+KV Cache
+   ↓
 Text Generation
+   ↓
+Sampling Experiments
 ```
 
 The goal is not to build the largest or most capable model.
 
-The goal is to understand what is happening inside a language model by implementing and experimenting with the individual components ourselves.
+The goal is to understand what is happening inside a language model by implementing, testing, training, and experimenting with the individual components ourselves.
 
 ---
 
@@ -44,17 +42,27 @@ The project covers the path from:
 
 ```text
 text
-→ bytes
-→ tokens
-→ embeddings
-→ attention
-→ transformer blocks
-→ logits
-→ next-token prediction
-→ trained language model
+ ↓
+bytes
+ ↓
+tokens
+ ↓
+embeddings
+ ↓
+attention
+ ↓
+transformer blocks
+ ↓
+logits
+ ↓
+next-token prediction
+ ↓
+trained language model
+ ↓
+text generation
 ```
 
-Most components are implemented directly in Python/PyTorch rather than hidden behind high-level libraries.
+Most core components are implemented directly in Python/PyTorch rather than hidden behind high-level Transformer libraries.
 
 The implementation is intentionally small enough to inspect, modify, and experiment with.
 
@@ -62,7 +70,7 @@ The implementation is intentionally small enough to inspect, modify, and experim
 
 # Project Roadmap
 
-The project is being developed in stages.
+The project is being developed in stages:
 
 ```text
 Phase 1
@@ -96,7 +104,7 @@ Experiments
 Understand what changes model behavior and performance
 ```
 
-The README will evolve with the project, so the sections below follow the same order.
+The README follows the same order as the learning process.
 
 ---
 
@@ -104,18 +112,18 @@ The README will evolve with the project, so the sections below follow the same o
 
 Before building a model, we first inspect the data.
 
-The initial experiments use the TinyStories dataset.
+The project uses the TinyStories dataset.
 
-The first notebook explores:
+The initial exploration covers:
 
-- number of stories
-- text length
-- character distribution
-- common words/patterns
-- training and validation data
-- basic corpus statistics
+- Number of stories
+- Text length
+- Character distribution
+- Common patterns
+- Training and validation data
+- Basic corpus statistics
 
-The purpose of this stage is to understand what the model will actually be trained on rather than treating the dataset as a black box.
+The purpose is to understand what the model will actually be trained on rather than treating the dataset as a black box.
 
 Notebook:
 
@@ -131,7 +139,7 @@ A language model does not directly consume text.
 
 The text must first be converted into token IDs.
 
-The tokenizer learning path started from a simple toy BPE implementation and progressively became more realistic.
+The tokenizer learning path started with a simple toy BPE implementation and progressively became a more practical byte-level implementation.
 
 ```text
 Text
@@ -147,30 +155,30 @@ Subword tokens
 Token IDs
 ```
 
-The final tokenizer is implemented from scratch in:
+The final tokenizer is implemented in:
 
 ```text
 tokenizer/bpe.py
 ```
 
-The tokenizer supports:
+It supports:
 
 - 256 initial byte tokens
 - BPE vocabulary expansion
-- merge rules
-- merge ranks
-- pre-tokenization
-- frequency-weighted BPE training
-- special tokens
-- encoding
-- decoding
-- save/load
+- Merge rules
+- Merge ranks
+- Pre-tokenization
+- Frequency-weighted BPE training
+- Special tokens
+- Encoding
+- Decoding
+- Save/load
 
 ---
 
 ## Tokenizer Evolution
 
-Three implementations were explored while learning.
+Three implementations were explored while learning:
 
 ```text
 BPE v1
@@ -186,108 +194,24 @@ Final bpe.py
 Pre-tokenized + frequency-weighted BPE
 ```
 
-### v1 — Naive BPE
+The first implementation repeatedly scanned the full corpus.
 
-The first implementation repeatedly scanned the full corpus:
+The second explored incremental pair statistics to reduce repeated work, but the additional Python bookkeeping made it slower in the benchmark used during development.
 
-```text
-Full corpus
-   ↓
-Count all pairs
-   ↓
-Select most frequent pair
-   ↓
-Merge across corpus
-   ↓
-Repeat
-```
+The final implementation changed the representation of the training corpus by using pre-tokenized pieces and their frequencies, significantly reducing tokenizer training time.
 
-This was simple and useful for understanding the algorithm, but became expensive as the number of merges increased.
-
----
-
-### v2 — Incremental Pair Statistics
-
-The second implementation attempted to avoid repeatedly scanning everything by maintaining:
-
-```text
-pair_counts
-pair_to_sequences
-```
-
-Only sequences affected by the selected pair were updated.
-
-However, the additional Python bookkeeping introduced enough overhead that it was actually slower in our benchmark.
-
-```text
-~1M characters
-512 vocabulary
-
-v1 → 20.58 sec
-v2 → 35.37 sec
-```
-
-This was kept as an optimization experiment because understanding why an optimization does not help is also useful.
-
----
-
-### Final `bpe.py`
-
-The final implementation changes the representation of the training corpus.
-
-Instead of repeatedly processing every occurrence:
-
-```text
-Raw text
-   ↓
-Pre-tokenization
-   ↓
-Unique pieces + frequency
-   ↓
-Frequency-weighted pair counts
-   ↓
-BPE merges
-```
-
-For approximately 1M characters:
-
-```text
-Total pre-tokenized pieces: 242,691
-Unique pieces:               4,876
-```
-
-Repeated pieces can therefore be represented once while retaining their corpus frequency.
-
-This significantly reduced training time.
-
-```text
-~1M characters
-512 vocabulary
-
-Final bpe.py → 0.80 sec
-```
-
-With the full 8,192-token target on the same development sample:
-
-```text
-Characters:     ~1.0M
-Vocabulary:     8,192
-BPE merges:     7,935
-Training time:  12.24 sec
-```
-
-The full tokenizer was subsequently trained on the complete TinyStories training corpus.
+These experiments are retained because understanding why an optimization does or does not help is part of the learning process.
 
 ---
 
 # 3. Final TinyStories Tokenizer
 
-The final tokenizer was trained only on the training corpus.
+The final tokenizer was trained only on the TinyStories training corpus.
 
 ```text
-Training stories:     25,000
-Training characters:  20,087,753
-Vocabulary size:       8,192
+Training stories:       25,000
+Training characters:    20,087,753
+Vocabulary size:        8,192
 BPE merges:             7,935
 ```
 
@@ -297,34 +221,26 @@ The trained tokenizer is saved as:
 artifacts/tinystories_bpe_8192.json
 ```
 
-The tokenizer was then used to encode both the training and validation datasets.
-
 ### Training token statistics
 
 ```text
-Characters:       20,087,753
-Tokens:            4,907,617
-Characters/token:      ~4.09
-Tokens/character:      ~0.244
+Characters:             20,087,753
+Tokens:                  4,907,617
+Characters/token:           ~4.09
+Tokens/character:            ~0.244
 ```
 
 ### Validation token statistics
 
 ```text
-Stories:           2,000
-Characters:        1,617,811
-Tokens:              396,525
-Characters/token:      ~4.08
-Tokens/character:      ~0.245
+Stories:                  2,000
+Characters:               1,617,811
+Tokens:                     396,525
+Characters/token:             ~4.08
+Tokens/character:              ~0.245
 ```
 
-So the Mini GPT training corpus contains approximately:
-
-```text
-4.91M tokens
-```
-
-This gives us the actual token budget for the model rather than estimating it from character counts.
+The final training pipeline contains approximately 4.93M tokens after adding EOS tokens and constructing the continuous training stream.
 
 ---
 
@@ -339,22 +255,6 @@ encode → decode
 round trip.
 
 Special tokens are handled separately from normal BPE merges.
-
-For example:
-
-```text
-"play<|endoftext|>played"
-```
-
-is represented as:
-
-```text
-BPE tokens
-+
-<|endoftext|>
-+
-BPE tokens
-```
 
 The tokenizer also supports persistence:
 
@@ -380,9 +280,9 @@ Save/load round-trip tests pass successfully.
 
 # 5. Transformer Architecture
 
-With the tokenizer complete, the next stage is to build the language model itself.
+With the tokenizer complete, the next stage was building the language model itself.
 
-The model will follow the decoder-only Transformer architecture used by GPT-style models.
+The model follows a decoder-only Transformer architecture.
 
 High-level flow:
 
@@ -397,7 +297,7 @@ Transformer Block
    ↓
 ...
    ↓
-Final Normalization
+Final RMSNorm
    ↓
 Language Model Head
    ↓
@@ -411,35 +311,67 @@ Input
  ↓
 RMSNorm
  ↓
-Multi-Head Self-Attention
+Multi-Head Self-Attention + RoPE
  ↓
 Residual Connection
  ↓
 RMSNorm
  ↓
-Feed-Forward Network
+SwiGLU
  ↓
 Residual Connection
+ ↓
+Output
 ```
 
-The project will implement and study:
+The project implements:
 
-- token embeddings
-- positional information
+- Token embeddings
 - Q/K/V projections
-- multi-head attention
-- causal masking
+- Multi-head attention
+- Causal masking
 - RoPE
 - RMSNorm
 - SwiGLU
-- residual connections
-- language-model head
+- Residual connections
+- Language-model head
+
+The model components are located under:
+
+```text
+model/
+├── attention.py
+├── gpt.py
+├── rmsnorm.py
+├── rope.py
+├── swiglu.py
+└── transformer_block.py
+```
 
 ---
 
-# 6. Attention
+# 6. Mini GPT Configuration
 
-The attention mechanism will be implemented directly rather than using a high-level Transformer implementation.
+The current baseline model uses:
+
+```text
+Vocabulary size:       8,192
+d_model:               512
+Transformer blocks:    4
+Attention heads:       8
+Head dimension:        64
+SwiGLU size:           2,048
+Context length:        512
+Parameters:             ~25.2M
+```
+
+The model is intentionally small enough to train locally while still containing the major components found in modern decoder-only language models.
+
+---
+
+# 7. Attention
+
+Attention is implemented directly rather than using a high-level Transformer implementation.
 
 The core operation is:
 
@@ -448,65 +380,129 @@ Q = XWq
 K = XWk
 V = XWv
 
-Attention(Q,K,V)
+Attention(Q, K, V)
 =
-softmax(QKᵀ / √d)
-V
+softmax(QKᵀ / √d) V
 ```
 
-The project will explore:
+The implementation includes:
 
 ```text
-single-head attention
-        ↓
-multi-head attention
-        ↓
-causal attention
-        ↓
+Q/K/V projections
+      ↓
+Multi-head attention
+      ↓
+Causal masking
+      ↓
 RoPE
-        ↓
+      ↓
 KV cache
 ```
 
-The objective is to understand what each matrix and tensor represents rather than treating attention as one opaque operation.
+The goal is to understand what each matrix and tensor represents rather than treating attention as one opaque operation.
 
 ---
 
-# 7. Transformer Building Blocks
+# 8. Transformer Building Blocks
 
-The model will be assembled from small independent components.
+The model is assembled from small independent components.
 
-Expected structure:
+The main structure is:
 
 ```text
-mini_gpt/
-├── attention.py
-├── embeddings.py
-├── model.py
-├── rmsnorm.py
-├── rope.py
-├── swiglu.py
-└── transformer_block.py
+RMSNorm
+   ↓
+Attention + RoPE
+   ↓
+Residual
+   ↓
+RMSNorm
+   ↓
+SwiGLU
+   ↓
+Residual
 ```
 
-Each component will first be tested independently before being combined into the full model.
+Each major component was tested independently before being combined into the full model.
+
+The corresponding learning notebooks are under:
+
+```text
+notebooks/
+```
+
+and deeper implementation notes are captured under:
+
+```text
+docs/
+```
 
 ---
 
-# 8. Training Mini GPT
+# 9. Dataset Preparation
 
-Once the architecture is complete, the tokenizer will convert TinyStories into token IDs.
+Once the tokenizer and model were complete, TinyStories was converted into training sequences.
 
-The training pipeline will become:
+The pipeline is:
 
 ```text
-TinyStories
+Raw stories
    ↓
-Final BPE tokenizer
+Tokenizer
    ↓
-~4.91M training tokens
+Add EOS token
    ↓
-Input sequences
+Concatenate into continuous token stream
+   ↓
+Shift input / target
+   ↓
+Pack into 512-token sequences
+   ↓
+DataLoader
+   ↓
+Mini GPT
+```
+
+The important detail is that the input/target shift happens before splitting the continuous stream into fixed-length sequences.
+
+This allows the model to learn across sequence boundaries in the packed token stream.
+
+The reusable dataset implementation is:
+
+```text
+data/dataset.py
+```
+
+Dataset preparation is handled by:
+
+```text
+scripts/prepare_dataset.py
+```
+
+---
+
+# 10. Training Mini GPT
+
+The model is trained using causal language modeling.
+
+For a sequence:
+
+```text
+t1 t2 t3 t4
+```
+
+the model learns:
+
+```text
+t1       → t2
+t1 t2    → t3
+t1 t2 t3 → t4
+```
+
+The training pipeline is:
+
+```text
+Token IDs
    ↓
 Mini GPT
    ↓
@@ -521,61 +517,71 @@ Optimizer
 Updated weights
 ```
 
-The model will learn using next-token prediction.
-
-For example:
+The current training configuration is:
 
 ```text
-Input:
-
-The little dog
-
-Target:
-
-little dog ran
+Epochs:             5
+Batch size:         32
+Learning rate:      3e-4
+Optimizer:          AdamW
+Weight decay:       0.1
+Warmup ratio:       5%
+Gradient clipping:  1.0
+Scheduler:          Warmup + cosine decay
 ```
 
-The model learns to predict the next token at every position.
+Training automatically uses:
+
+```text
+CUDA → MPS → CPU
+```
+
+depending on hardware availability.
 
 ---
 
-# 9. Training Objective
+# 11. Training Results
 
-The primary training objective will be causal language modeling.
-
-For a sequence:
+The first complete baseline training run used the full prepared TinyStories training dataset.
 
 ```text
-t1 t2 t3 t4
+Model parameters:        25,170,432
+Training sequences:           9,634
+Validation sequences:           778
+Sequence length:                512
+Optimizer steps:              ~1,505
+Training tokens:         ~4.93M
 ```
 
-the model learns:
+### Loss progression
+
+| Epoch | Train Loss | Validation Loss |
+|------:|-----------:|----------------:|
+| 1 | 4.1669 | 2.9104 |
+| 2 | 2.6256 | 2.4617 |
+| 3 | 2.2914 | 2.2613 |
+| 4 | 2.1016 | 2.1685 |
+| 5 | 1.9976 | **2.1337** |
+
+The validation loss improved throughout the five-epoch baseline run.
+
+Final validation perplexity:
 
 ```text
-t1 → t2
-t1 t2 → t3
-t1 t2 t3 → t4
+Perplexity = exp(2.1337)
+
+≈ 8.45
 ```
 
-The loss will be cross-entropy between:
-
-```text
-predicted next-token distribution
-```
-
-and:
-
-```text
-actual next token
-```
+This baseline provides a reference point for future model and training experiments.
 
 ---
 
-# 10. Validation
+# 12. Validation
 
-A separate validation corpus will be kept outside tokenizer training and model training.
+A separate validation corpus is kept outside model training.
 
-The validation pipeline will be:
+The validation pipeline is:
 
 ```text
 Validation text
@@ -587,127 +593,210 @@ Validation token IDs
 Mini GPT
    ↓
 Validation loss
+   ↓
+Perplexity
 ```
 
-This allows us to compare:
+The current baseline achieved:
 
 ```text
-Training loss
-vs
-Validation loss
+Final train loss:       1.9976
+Best validation loss:   2.1337
+Validation perplexity:  ~8.45
 ```
 
-and understand overfitting and generalization.
+Future changes to the model or training configuration can be compared against this baseline.
 
 ---
 
-# 11. Text Generation
+# 13. Checkpoints
 
-After training, the model will generate text autoregressively.
+Training saves two checkpoints:
 
 ```text
-Prompt
- ↓
-Tokenizer
- ↓
-Token IDs
- ↓
-Mini GPT
- ↓
-Next-token probabilities
- ↓
-Sampling
- ↓
-New token
- ↓
-Append token
- ↓
-Repeat
+checkpoints/
+├── best_model.pt
+└── latest_model.pt
 ```
 
-Generation experiments will include:
+The checkpoints contain the model and training state needed to resume or run inference.
 
-- greedy decoding
-- temperature
-- top-k sampling
-- top-p sampling
-- EOS stopping
-- KV cache
+They are intentionally excluded from Git because each checkpoint is a large binary file.
+
+The repository therefore contains the implementation, configuration, notebooks, and documentation rather than storing the trained weights directly in Git.
 
 ---
 
-# 12. KV Cache
+# 14. KV Cache
 
-During generation, the model repeatedly processes the growing sequence.
+During autoregressive generation, the model repeatedly processes a growing sequence.
 
-Without a KV cache:
-
-```text
-token 1
-token 1 + token 2
-token 1 + token 2 + token 3
-...
-```
-
-The previous attention keys and values are repeatedly recomputed.
+Without a KV cache, previously computed attention keys and values are repeatedly recomputed.
 
 With a KV cache:
 
 ```text
 Prompt
- ↓
-Compute K/V once
- ↓
+   ↓
+Compute K/V
+   ↓
 Cache K/V
- ↓
+   ↓
 Generate next token
- ↓
-Compute only new Q/K/V
- ↓
-Append new K/V to cache
- ↓
+   ↓
+Compute new Q/K/V
+   ↓
+Append new K/V
+   ↓
 Repeat
 ```
 
-The project will implement and verify the cache by comparing cached and non-cached outputs.
+The KV cache is implemented in the attention, Transformer block, and GPT modules.
+
+The cached generation path was tested against full-sequence generation and produces matching outputs for the corresponding positions.
 
 ---
 
-# 13. Experiments
+# 15. Text Generation
+
+After training, the model can generate text autoregressively.
+
+The generation process is:
+
+```text
+Prompt
+   ↓
+Tokenizer
+   ↓
+Token IDs
+   ↓
+Mini GPT
+   ↓
+Next-token probabilities
+   ↓
+Sampling
+   ↓
+New token
+   ↓
+Append token
+   ↓
+Repeat
+```
+
+The generation implementation supports:
+
+- Temperature
+- Top-K sampling
+- Top-P sampling
+- EOS stopping
+- Maximum new tokens
+- KV cache
+
+Implementation:
+
+```text
+generate.py
+```
+
+The current model generates TinyStories-style continuations.
+
+It is not an instruction-tuned chatbot, so prompts such as questions do not necessarily produce direct answers. The model was trained primarily on next-token prediction.
+
+---
+
+# 16. Generation Playground
+
+A lightweight local frontend was built to experiment with the trained model interactively.
+
+The playground exposes:
+
+```text
+Temperature
+Top-K
+Top-P
+Max Tokens
+```
+
+It also displays next-token probabilities for generated tokens.
+
+This makes it possible to observe how sampling parameters affect generation.
+
+For example:
+
+```text
+Lower temperature
+   ↓
+Sharper probability distribution
+   ↓
+More predictable generation
+```
+
+while:
+
+```text
+Higher temperature
+   ↓
+Flatter probability distribution
+   ↓
+More varied generation
+```
+
+The playground is primarily a learning and experimentation tool.
+
+### Running the Playground
+
+```bash
+python -m uvicorn frontend.app.tokenizer.api:app --host 127.0.0.1 --port 8070
+```
+
+Open `http://127.0.0.1:8070` in a browser.
+
+To stop the server:
+
+```bash
+pkill -f "uvicorn frontend"
+```
+
+---
+
+# 17. Experiments
 
 The project is intentionally experiment-driven.
 
-Examples include:
+Current and planned experiments include:
 
-```text
-Tokenizer:
-- vocabulary size
-- pre-tokenization
+### Tokenizer
+
+- Vocabulary size
 - BPE merge count
-- token compression
-- training performance
+- Pre-tokenization
+- Token compression
+- Training performance
 
-Model:
-- hidden size
-- number of layers
-- attention heads
-- context length
-- feed-forward size
+### Model
 
-Training:
-- learning rate
-- batch size
-- sequence length
-- optimizer
-- number of training steps
+- Number of Transformer blocks
+- d_model
+- Attention heads
+- Context length
+- Feed-forward size
 
-Generation:
-- temperature
-- top-k
-- top-p
-- greedy decoding
+### Training
+
+- Learning rate
+- Batch size
+- Sequence length
+- Optimizer
+- Number of training steps
+- Training duration
+
+### Generation
+
+- Temperature
+- Top-K
+- Top-P
+- Greedy decoding
 - KV cache
-```
 
 The objective is to measure what changes rather than relying only on intuition.
 
@@ -726,34 +815,59 @@ mini-gpt-from-scratch/
 │   ├── raw/
 │   │   ├── train.jsonl
 │   │   └── val.jsonl
-│   │
-│   └── processed/
+│   ├── processed/
+│   │   ├── train.pt
+│   │   └── val.pt
+│   └── dataset.py
 │
 ├── docs/
+│   ├── dataset.md
 │   ├── tokenizer.md
 │   ├── RoPE.md
 │   └── transformer_block.md
+│
+├── model/
+│   ├── attention.py
+│   ├── gpt.py
+│   ├── rmsnorm.py
+│   ├── rope.py
+│   ├── swiglu.py
+│   └── transformer_block.py
 │
 ├── notebooks/
 │   ├── 01_raw_data_exploration.ipynb
 │   ├── 02_bpe_tokenizer.ipynb
 │   ├── 03_byte_level_bpe.ipynb
-│   └── 04_tokenizer_on_tinystories.ipynb
+│   ├── 04_tokenizer_on_tinystories.ipynb
+│   ├── 05_embeddings.ipynb
+│   ├── 06_rmsnorm.ipynb
+│   ├── 07_rope.ipynb
+│   ├── 08_attention.ipynb
+│   ├── 09_transformer_block.ipynb
+│   ├── 10_mini_gpt.ipynb
+│   ├── 11_kv_cache.ipynb
+│   ├── 12_dataset.ipynb
+│   ├── 13_token_stream.ipynb
+│   └── 14_dataloader.ipynb
 │
 ├── scripts/
-│   └── download_data.py
+│   ├── download_data.py
+│   └── prepare_dataset.py
 │
 ├── tokenizer/
 │   ├── bpe.py
 │   ├── bpe_v1.py
 │   └── bpe_v2.py
 │
+├── frontend/
+│
+├── config.py
+├── train.py
+├── generate.py
 ├── README.md
 ├── requirements.txt
 └── .gitignore
 ```
-
-As the model implementation is added, the repository will expand with the model, training, and inference components.
 
 ---
 
@@ -776,23 +890,27 @@ The recommended way to follow this repository is:
         ↓
 07. Understand embeddings
         ↓
-08. Build attention
+08. Build RMSNorm
         ↓
-09. Add RoPE
+09. Build RoPE
         ↓
-10. Build Transformer block
+10. Build attention
         ↓
-11. Build Mini GPT
+11. Build Transformer block
         ↓
-12. Train on TinyStories
+12. Build Mini GPT
         ↓
-13. Validate
+13. Prepare training data
         ↓
-14. Generate text
+14. Train Mini GPT
         ↓
 15. Add KV cache
         ↓
-16. Run experiments
+16. Generate text
+        ↓
+17. Experiment with sampling
+        ↓
+18. Evaluate and improve the baseline
 ```
 
 The notebooks are intended to explain and experiment with concepts.
@@ -807,58 +925,14 @@ The `docs/` directory captures deeper technical notes and implementation decisio
 
 This is not intended to be:
 
-- a production LLM
-- a reproduction of a large commercial model
-- a replacement for optimized tokenizer libraries
-- a benchmark-focused implementation
+- A production LLM
+- A reproduction of a large commercial model
+- A replacement for optimized tokenizer libraries
+- A benchmark-focused implementation
 
 The focus is understanding.
 
 The implementations are deliberately small enough to read from beginning to end.
-
----
-
-# Current Status
-
-### Completed
-
-```text
-Data exploration                         ✅
-Toy BPE                                  ✅
-Byte-level BPE                           ✅
-Merge ranks                              ✅
-Special-token handling                   ✅
-Encode / decode                          ✅
-Save / load                              ✅
-Pre-tokenization                         ✅
-Frequency-weighted BPE                   ✅
-Tokenizer optimization experiments      ✅
-Final 8,192-token tokenizer              ✅
-Full TinyStories tokenization            ✅
-Train / validation token statistics     ✅
-```
-
-### Next
-
-```text
-Transformer architecture
-      ↓
-Attention
-      ↓
-RoPE
-      ↓
-RMSNorm
-      ↓
-SwiGLU
-      ↓
-Transformer block
-      ↓
-Mini GPT
-      ↓
-Training
-      ↓
-Generation
-```
 
 ---
 
@@ -872,18 +946,53 @@ For each major component, the progression is:
 
 ```text
 Concept
- ↓
+   ↓
 Small implementation
- ↓
+   ↓
 Test
- ↓
+   ↓
 Experiment
- ↓
+   ↓
 Measure
- ↓
+   ↓
 Improve
- ↓
+   ↓
 Document
 ```
 
-The goal is to finish the project with a working Mini GPT, but more importantly, to understand the path from raw text to trained language-model weights.
+The goal is to finish the project with a working Mini GPT, but more importantly, to understand the path from raw text to trained language-model weights and generated text.
+
+---
+
+# Baseline Snapshot
+
+The current baseline:
+
+```text
+Model:                  Mini GPT
+Parameters:             25.17M
+Vocabulary size:        8,192
+d_model:                512
+Transformer blocks:     4
+Attention heads:        8
+Head dimension:         64
+SwiGLU size:            2,048
+Context length:         512
+
+Training stories:       25,000
+Training tokens:        ~4.93M
+Validation stories:     2,000
+Validation tokens:      ~0.40M
+
+Training epochs:        5
+Final train loss:       1.9976
+Best validation loss:   2.1337
+Validation perplexity:  ~8.45
+
+KV cache:               Enabled
+Temperature sampling:   Enabled
+Top-K sampling:         Enabled
+Top-P sampling:         Enabled
+```
+
+This baseline will serve as the reference point for future experiments.

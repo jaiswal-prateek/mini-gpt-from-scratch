@@ -4,3 +4,5 @@ tqdm
 matplotlib
 jupyter
 datasets
+fastapi
+uvicorn

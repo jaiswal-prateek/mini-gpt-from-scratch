@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini GPT — Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Top Bar ──────────────────────────────────────── -->
+  <header>
+    <h1><span class="brand">Mini GPT</span> Playground</h1>
+    <div class="header-right">
+      <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">
+        <span id="theme-icon">☀️</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Main Tabs ────────────────────────────────────── -->
+  <div class="main-tabs">
+    <button class="main-tab active" data-main="tokenizer">Tokenizer</button>
+    <button class="main-tab" data-main="llm">LLM Playground</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════ -->
+  <!--  TOKENIZER SECTION                                  -->
+  <!-- ════════════════════════════════════════════════════ -->
+  <div id="main-tokenizer" class="main-section active">
+
+    <!-- Sub-tabs -->
+    <div class="sub-tabs">
+      <button class="sub-tab active" data-section="encode">Encode</button>
+      <button class="sub-tab" data-section="decode">Decode</button>
+      <button class="sub-tab" data-section="vocab">Vocabulary</button>
+      <button class="sub-tab" data-section="merges">Merges</button>
+      <button class="sub-tab" data-section="tok-info">Info</button>
+    </div>
+
+    <div class="tok-controls">
+      <select id="tokenizer-select">
+        <option value="tinystories_8192">TinyStories 8192 (Full)</option>
+        <option value="tinystories_8192_dev">TinyStories 8192 (Dev ~1M)</option>
+      </select>
+    </div>
+
+    <!-- ENCODE -->
+    <div id="section-encode" class="section active">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Input Text</span></div>
+        <textarea id="encode-input" placeholder="Type or paste text here…">Once upon a time, there was a little girl named Lily. She loved to play outside in the sunshine.</textarea>
+      </div>
+      <div class="stats-bar">
+        <div class="stat"><span class="stat-value" id="stat-tokens">0</span><span class="stat-label">tokens</span></div>
+        <span class="stat-sep">·</span>
+        <div class="stat"><span class="stat-value" id="stat-chars">0</span><span class="stat-label">characters</span></div>
+        <span class="stat-sep">·</span>
+        <div class="stat"><span class="stat-value" id="stat-ratio">—</span><span class="stat-label">chars / token</span></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Tokenized Output</span>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <div class="view-toggle">
+              <button class="view-btn active" data-view="tokens">Tokens</button>
+              <button class="view-btn" data-view="ids">IDs</button>
+            </div>
+            <button class="copy-btn" id="copy-ids-btn" onclick="copyTokenIds()">Copy</button>
+          </div>
+        </div>
+        <div id="token-display" class="token-display"><div class="placeholder">Start typing to see tokens…</div></div>
+        <div id="token-ids-display" class="token-ids-display" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- DECODE -->
+    <div id="section-decode" class="section">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Token IDs</span></div>
+        <textarea class="decode-input" id="decode-input" placeholder="Enter token IDs — comma separated, space separated, or JSON array&#10;e.g. 257, 258, 259  or  [257, 258, 259]"></textarea>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Decoded Text</span></div>
+        <div id="decode-output" class="decode-output"><span class="placeholder">Enter token IDs above to decode…</span></div>
+      </div>
+    </div>
+
+    <!-- VOCABULARY -->
+    <div id="section-vocab" class="section">
+      <div class="card">
+        <div class="search-bar">
+          <input type="text" id="vocab-search" placeholder="Search tokens by text or ID…" onkeydown="if(event.key==='Enter')vocabSearch()" />
+          <button class="btn-sm" onclick="vocabSearch()">Search</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:70px">ID</th><th>Token</th><th>Bytes (hex)</th><th style="width:50px">Len</th><th style="width:80px">Type</th></tr></thead>
+            <tbody id="vocab-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button id="vocab-prev" onclick="vocabPrev()" disabled>← Prev</button>
+          <span class="page-info" id="vocab-page-info">—</span>
+          <button id="vocab-next" onclick="vocabNext()">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MERGES -->
+    <div id="section-merges" class="section">
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:60px">Rank</th><th style="width:55px">ID₁</th><th>Token₁</th><th style="width:55px">ID₂</th><th>Token₂</th><th style="width:30px"></th><th style="width:65px">New ID</th><th>Result</th></tr></thead>
+            <tbody id="merges-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button id="merges-prev" onclick="mergesPrev()" disabled>← Prev</button>
+          <span class="page-info" id="merges-page-info">—</span>
+          <button id="merges-next" onclick="mergesNext()">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOK INFO -->
+    <div id="section-tok-info" class="section">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Tokenizer Details</span></div>
+        <div class="info-grid">
+          <div class="info-item"><div class="val" id="info-vocab-size">—</div><div class="lbl">Vocabulary Size</div></div>
+          <div class="info-item"><div class="val" id="info-merges">—</div><div class="lbl">BPE Merges</div></div>
+          <div class="info-item"><div class="val" id="info-special">—</div><div class="lbl">Special Tokens</div></div>
+        </div>
+        <div class="info-detail">
+          <span class="card-title">Special Tokens</span>
+          <div id="info-special-list" class="mono-val">—</div>
+        </div>
+        <div class="info-detail">
+          <span class="card-title">About</span>
+          <p class="info-about">
+            A <strong>Byte-Level BPE tokenizer</strong> built from scratch for the
+            <strong class="accent">Mini GPT From Scratch</strong> project.
+            Trained on TinyStories using frequency-weighted pre-tokenized BPE.
+            256 byte-level base tokens + learned subword merges → 8,192 total tokens.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════ -->
+  <!--  LLM PLAYGROUND SECTION                             -->
+  <!-- ════════════════════════════════════════════════════ -->
+  <div id="main-llm" class="main-section">
+
+    <div class="llm-layout">
+
+      <!-- Left: Chat -->
+      <div class="llm-chat-col">
+        <div class="card llm-chat-card">
+          <div id="chat-messages" class="chat-messages">
+            <div class="chat-welcome">
+              <div class="chat-welcome-icon">✨</div>
+              <div class="chat-welcome-title">Mini GPT</div>
+              <div class="chat-welcome-sub">A tiny language model trained on TinyStories. Try a prompt!</div>
+              <div class="chat-suggestions">
+                <button class="suggestion" onclick="useSuggestion(this)">Once upon a time</button>
+                <button class="suggestion" onclick="useSuggestion(this)">The little dog ran</button>
+                <button class="suggestion" onclick="useSuggestion(this)">There was a girl named</button>
+                <button class="suggestion" onclick="useSuggestion(this)">One sunny morning</button>
+              </div>
+            </div>
+          </div>
+          <div class="chat-input-row">
+            <textarea id="prompt-input" class="chat-textarea" placeholder="Enter a prompt…" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPrompt();}"></textarea>
+            <button id="send-btn" class="send-btn" onclick="sendPrompt()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Controls + Probabilities -->
+      <div class="llm-side-col">
+
+        <!-- Controls -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Generation Settings</span></div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label>Temperature</label><span class="slider-val" id="temp-val">0.80</span>
+            </div>
+            <input type="range" id="slider-temp" min="0.1" max="2.0" step="0.05" value="0.8" oninput="updateSlider('temp')">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label>Top-K</label><span class="slider-val" id="topk-val">50</span>
+            </div>
+            <input type="range" id="slider-topk" min="1" max="200" step="1" value="50" oninput="updateSlider('topk')">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label>Top-P</label><span class="slider-val" id="topp-val">0.90</span>
+            </div>
+            <input type="range" id="slider-topp" min="0.1" max="1.0" step="0.05" value="0.9" oninput="updateSlider('topp')">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label>Max Tokens</label><span class="slider-val" id="maxtok-val">100</span>
+            </div>
+            <input type="range" id="slider-maxtok" min="10" max="300" step="10" value="100" oninput="updateSlider('maxtok')">
+          </div>
+        </div>
+
+        <!-- Token Probabilities -->
+        <div class="card prob-card">
+          <div class="card-header">
+            <span class="card-title">Next-Token Probabilities</span>
+          </div>
+          <div class="prob-hint" id="prob-hint">Click a generated token to see its candidates</div>
+          <div id="prob-panel" class="prob-panel" style="display:none;">
+            <div class="prob-selected" id="prob-selected-info"></div>
+            <div class="prob-list" id="prob-list"></div>
+          </div>
+        </div>
+
+        <!-- Model Info -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Model</span></div>
+          <div class="model-info-grid" id="model-info-grid">
+            <div class="mi"><span class="mi-val" id="mi-params">—</span><span class="mi-lbl">Parameters</span></div>
+            <div class="mi"><span class="mi-val" id="mi-layers">—</span><span class="mi-lbl">Layers</span></div>
+            <div class="mi"><span class="mi-val" id="mi-heads">—</span><span class="mi-lbl">Heads</span></div>
+            <div class="mi"><span class="mi-val" id="mi-dim">—</span><span class="mi-lbl">d_model</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
