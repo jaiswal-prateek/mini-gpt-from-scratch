@@ -1,6 +1,6 @@
 # Mini GPT From Scratch
 
-A hands-on project to understand how a GPT-style language model works by building the major components from scratch in PyTorch.
+A hands-on, from-scratch implementation of a small GPT style language model in PyTorch for learning how LLMs work - from byte-level BPE tokenization and embeddings to Transformer attention, RoPE, training, KV caching, and text generation.
 
 The project starts with raw text and progressively builds:
 
